@@ -1,7 +1,6 @@
 use std::{ffi::CStr, ops::Deref, os::raw::c_char};
 
 use mongodb::{bson::RawDocumentBuf, sync::Client};
-use tokio::runtime::Runtime;
 
 use crate::{bson::bson_t, database::mongoc_database_t};
 

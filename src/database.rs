@@ -1,6 +1,9 @@
 use std::{ffi::CStr, ops::Deref, os::raw::c_char};
 
-use mongodb::{bson::RawDocumentBuf, sync::{Database, Client}};
+use mongodb::{
+    bson::RawDocumentBuf,
+    sync::{Client, Database},
+};
 
 use crate::{bson::bson_t, client::mongoc_client_t, collection::mongoc_collection_t};
 
@@ -12,7 +15,7 @@ pub struct mongoc_database_t {
 impl mongoc_database_t {
     pub(crate) unsafe fn new(client: &Client, name: impl AsRef<str>) -> mongoc_database_t {
         mongoc_database_t {
-            database: (*client).database(name.as_ref())
+            database: (*client).database(name.as_ref()),
         }
     }
 }
@@ -34,17 +37,17 @@ pub unsafe extern "C" fn mongoc_database_command_simple(
     _error: *const u8,
 ) -> bool {
     let result: anyhow::Result<_> = (|| {
-        let reply = (*database).database.run_command((*command).to_document()?, None)?;
+        let reply = (*database)
+            .database
+            .run_command((*command).to_document()?, None)?;
         Ok(RawDocumentBuf::from_document(&reply)?)
     })();
 
     match result {
         Ok(r) => {
-            *reply = bson_t {
-                doc: r,
-            };
+            *reply = bson_t { doc: r };
             true
-        },
+        }
         Err(e) => {
             // TODO: set error here
             false
