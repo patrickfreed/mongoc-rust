@@ -7,7 +7,10 @@ use mongodb::{
 };
 
 use crate::{
-    bson::bson_t, client::mongoc_client_t, cursor::mongoc_cursor_t, database::mongoc_database_t,
+    bson::{bson_error_t, bson_t},
+    client::mongoc_client_t,
+    cursor::mongoc_cursor_t,
+    database::mongoc_database_t,
     mongoc_query_flags_t,
 };
 
@@ -38,7 +41,7 @@ pub unsafe extern "C" fn mongoc_collection_insert_one(
     document: *const bson_t,
     options: *const bson_t,
     reply: *mut bson_t,
-    _error: *const u8,
+    _error: *mut bson_error_t,
 ) -> bool {
     let result: anyhow::Result<_> = (|| {
         let options: Option<InsertOneOptions> = if !options.is_null() {
@@ -46,7 +49,9 @@ pub unsafe extern "C" fn mongoc_collection_insert_one(
         } else {
             None
         };
-        let result = (*collection).insert_one(&(*document).doc, options)?;
+        let result = (*collection)
+            .clone_with_type::<&RawDocument>()
+            .insert_one((*document).deref(), options)?;
         Ok(mongodb::bson::to_raw_document_buf(&result)?)
     })();
 

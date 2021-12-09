@@ -2,7 +2,11 @@ use std::{ffi::CStr, ops::Deref, os::raw::c_char};
 
 use mongodb::{bson::RawDocumentBuf, sync::Client};
 
-use crate::{bson::bson_t, database::mongoc_database_t};
+use crate::{
+    bson::{bson_error_t, bson_t},
+    database::mongoc_database_t,
+    session::mongoc_client_session_t,
+};
 
 #[allow(non_camel_case_types)]
 pub struct mongoc_client_t {
@@ -54,6 +58,18 @@ pub unsafe extern "C" fn mongoc_client_database(
     let name = CStr::from_ptr(db_name).to_string_lossy();
     let db = mongoc_database_t::new((*client).deref(), name);
     Box::into_raw(Box::new(db))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_client_start_session(
+    client: *mut mongoc_client_t,
+    _opts: *mut u8,
+    _error: *mut bson_error_t,
+) -> *mut mongoc_client_session_t {
+    match (*client).start_session(None) {
+        Ok(s) => Box::into_raw(Box::new(s.into())),
+        Err(_e) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
