@@ -42,7 +42,7 @@ pub unsafe extern "C" fn mongoc_cursor_next(
 
     match result {
         Ok(Some(doc)) => {
-            *bson = Box::into_raw(Box::new(bson_t { doc }));
+            *bson = Box::into_raw(Box::new(doc.into()));
             true
         }
         _ => false,

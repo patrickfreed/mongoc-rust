@@ -45,7 +45,7 @@ pub unsafe extern "C" fn mongoc_database_command_simple(
 
     match result {
         Ok(r) => {
-            *reply = bson_t { doc: r };
+            *reply = r.into();
             true
         }
         Err(e) => {

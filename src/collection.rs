@@ -1,4 +1,4 @@
-use std::{ops::Deref, ptr};
+use std::{borrow::Borrow, marker::PhantomData, ops::Deref, ptr};
 
 use mongodb::{
     bson::{Document, RawBsonRef, RawDocument, RawDocumentBuf},
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn mongoc_collection_insert_one(
 
     match result {
         Ok(r) => {
-            *reply = bson_t { doc: r };
+            *reply = r.into();
             true
         }
         Err(e) => false,

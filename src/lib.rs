@@ -1,3 +1,4 @@
+pub mod apm;
 pub mod bson;
 mod client;
 mod collection;

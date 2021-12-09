@@ -40,12 +40,10 @@ pub unsafe extern "C" fn mongoc_client_command_simple(
     let result = (*client)
         .client
         .database(CStr::from_ptr(db_name).to_str().unwrap())
-        .run_command((*command).doc.to_document().unwrap(), None)
+        .run_command((*command).to_document().unwrap(), None)
         .unwrap();
 
-    *reply = bson_t {
-        doc: RawDocumentBuf::from_document(&result).unwrap(),
-    };
+    *reply = RawDocumentBuf::from_document(&result).unwrap().into();
 }
 
 #[no_mangle]
