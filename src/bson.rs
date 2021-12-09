@@ -1,5 +1,7 @@
 use std::{
+    borrow::Cow,
     ffi::{CStr, CString},
+    io::Write,
     ops::Deref,
     os::raw::c_char,
 };
@@ -11,11 +13,11 @@ use mongodb::bson::{
 };
 
 #[allow(non_camel_case_types)]
-pub struct bson_t {
-    pub(crate) doc: RawDocumentBuf,
+pub struct bson_t<'a> {
+    pub(crate) doc: Cow<'a, RawDocument>,
 }
 
-impl Deref for bson_t {
+impl<'a> Deref for bson_t<'a> {
     type Target = RawDocument;
 
     fn deref(&self) -> &Self::Target {
@@ -23,29 +25,50 @@ impl Deref for bson_t {
     }
 }
 
-impl bson_t {
+impl<'a> bson_t<'a> {
     pub(crate) fn to_document(&self) -> Result<Document> {
-        Ok(self.doc.to_document()?)
+        Ok(self.doc.as_ref().try_into()?)
     }
 
     unsafe fn append(&mut self, key: *const c_char, val: impl Into<RawBson>) -> bool {
+        assert!(matches!(self.doc, Cow::Owned(_)));
+
         let key = CStr::from_ptr(key).to_string_lossy();
-        self.doc.append(key, val);
+        self.doc.to_mut().append(key, val);
         true
     }
 }
 
-impl From<RawDocumentBuf> for bson_t {
+impl<'a> From<RawDocumentBuf> for bson_t<'a> {
     fn from(doc: RawDocumentBuf) -> Self {
-        Self { doc }
+        Self { doc: doc.into() }
+    }
+}
+
+impl<'a> From<&'a RawDocument> for bson_t<'a> {
+    fn from(doc: &'a RawDocument) -> Self {
+        Self { doc: doc.into() }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn bson_new() -> *mut bson_t {
-    Box::into_raw(Box::new(bson_t {
-        doc: RawDocumentBuf::new(),
-    }))
+pub unsafe extern "C" fn bson_new() -> *mut bson_t<'static> {
+    Box::into_raw(Box::new(RawDocumentBuf::new().into()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bson_init_static<'a>(
+    bson: *mut bson_t,
+    bytes: *const u8,
+    length: usize,
+) -> bool {
+    let slice = std::slice::from_raw_parts(bytes, length);
+    if let Ok(doc) = RawDocument::from_bytes(slice) {
+        (*bson).doc = doc.into();
+        true
+    } else {
+        false
+    }
 }
 
 #[no_mangle]
@@ -97,7 +120,10 @@ pub unsafe extern "C" fn bson_append_array(
     _key_length: isize,
     val: *const bson_t,
 ) -> bool {
-    (*bson).append(key, RawArrayBuf::from_raw_document_buf((*val).doc.clone()))
+    (*bson).append(
+        key,
+        RawArrayBuf::from_raw_document_buf((*val).doc.clone().into_owned()),
+    )
 }
 
 #[no_mangle]
@@ -152,7 +178,7 @@ pub unsafe extern "C" fn bson_append_code_with_scope(
         key,
         RawJavaScriptCodeWithScope {
             code: s.to_string(),
-            scope,
+            scope: scope.into_owned(),
         },
     )
 }
@@ -311,9 +337,19 @@ pub unsafe extern "C" fn bson_append_undefined(
 
 #[no_mangle]
 pub unsafe extern "C" fn bson_to_string(bson: *const bson_t) -> *mut c_char {
-    CString::new(format!("{}", (*bson).doc.to_document().unwrap()))
+    CString::new(format!("{}", (*bson).to_document().unwrap()))
         .unwrap()
         .into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bson_get_data(bson: *const bson_t) -> *const u8 {
+    (*bson).as_bytes().as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bson_len(bson: *const bson_t) -> usize {
+    (*bson).as_bytes().len()
 }
 
 #[no_mangle]
@@ -339,8 +375,24 @@ pub struct bson_oid_t {
     bytes: [u8; 12],
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn bson_oid_to_string(bson: *const bson_oid_t, out: *mut c_char) {
+    let oid = ObjectId::from_bytes((*bson).bytes);
+    let s = CString::new(oid.to_hex()).unwrap();
+
+    let out_bytes = std::slice::from_raw_parts_mut(out as *mut u8, 25);
+    out_bytes[..].copy_from_slice(s.as_bytes_with_nul());
+}
+
 #[repr(C)]
 pub struct bson_decimal128_t {
     low: u64,
     high: u64,
+}
+
+#[repr(C)]
+pub struct bson_error_t {
+    domain: u32,
+    code: u32,
+    message: [c_char; 504],
 }
