@@ -6,6 +6,7 @@ mod client;
 mod collection;
 mod cursor;
 mod database;
+pub mod read_pref;
 pub mod session;
 
 use bitflags::bitflags;

@@ -1,8 +1,8 @@
 use std::{borrow::Borrow, marker::PhantomData, ops::Deref, ptr};
 
 use mongodb::{
-    bson::{Document, RawBsonRef, RawDocument, RawDocumentBuf},
-    options::{AggregateOptions, CountOptions, FindOptions, InsertOneOptions},
+    bson::{doc, Document, RawBsonRef, RawDocument, RawDocumentBuf},
+    options::{AggregateOptions, CountOptions, FindOptions, InsertOneOptions, ListIndexesOptions},
     sync::{Collection, Database},
 };
 
@@ -12,6 +12,7 @@ use crate::{
     cursor::mongoc_cursor_t,
     database::mongoc_database_t,
     mongoc_query_flags_t,
+    read_pref::mongoc_read_prefs_t,
 };
 
 #[allow(non_camel_case_types)]
@@ -121,7 +122,7 @@ pub unsafe extern "C" fn mongoc_collection_count_documents(
     collection: *const mongoc_collection_t,
     filter: *const bson_t,
     options: *const bson_t,
-    _read_pref: *const u8,
+    _read_pref: *const mongoc_read_prefs_t,
     _reply: *mut bson_t,
     _error: *const u8,
 ) -> i64 {
@@ -141,6 +142,28 @@ pub unsafe extern "C" fn mongoc_collection_count_documents(
     match result {
         Ok(r) => r as i64,
         Err(_e) => -1,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_collection_find_indexes_with_opts(
+    collection: *const mongoc_collection_t,
+    options: *const bson_t,
+) -> *mut mongoc_cursor_t {
+    let result: anyhow::Result<_> = (|| {
+        let opts: ListIndexesOptions = if !options.is_null() {
+            mongodb::bson::from_slice((*options).as_bytes())?
+        } else {
+            Default::default()
+        };
+
+        let result = (*collection).list_indexes(opts)?;
+        Ok(result)
+    })();
+
+    match result {
+        Ok(r) => Box::into_raw(Box::new(mongoc_cursor_t::new(r.with_type()))),
+        Err(_e) => std::ptr::null_mut(),
     }
 }
 
