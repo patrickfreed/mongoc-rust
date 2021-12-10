@@ -1,6 +1,9 @@
 use std::{ffi::CStr, ops::Deref, os::raw::c_char};
 
-use mongodb::{bson::RawDocumentBuf, sync::Client};
+use mongodb::{
+    bson::{Document, RawBsonRef, RawDocumentBuf},
+    sync::Client,
+};
 
 use crate::{
     bson::{bson_error_t, bson_t},
@@ -75,4 +78,22 @@ pub unsafe extern "C" fn mongoc_client_start_session(
 #[no_mangle]
 pub unsafe extern "C" fn mongoc_client_destroy(client: *mut mongoc_client_t) {
     drop(Box::from_raw(client));
+}
+
+pub(crate) unsafe fn make_agg_pipeline(pipeline: *const bson_t) -> anyhow::Result<Vec<Document>> {
+    let pipeline_doc = match (*pipeline).into_iter().next().transpose()? {
+        Some(("0", _)) | None => (*pipeline).deref(),
+        Some(("pipeline", RawBsonRef::Document(d))) => d,
+        _ => anyhow::bail!("invalid pipeline document: {:#?}", (*pipeline).deref()),
+    };
+
+    let pipeline: Vec<Document> = pipeline_doc
+        .into_iter()
+        .map(|kvp| match kvp?.1 {
+            RawBsonRef::Document(d) => Ok(mongodb::bson::to_document(&d)?),
+            o => anyhow::bail!("expected document in pipeline, got {:?} instead", o),
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    Ok(pipeline)
 }

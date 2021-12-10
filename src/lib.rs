@@ -1,5 +1,6 @@
 pub mod apm;
 pub mod bson;
+mod change_stream;
 mod client;
 mod collection;
 mod cursor;

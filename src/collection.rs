@@ -8,7 +8,7 @@ use mongodb::{
 
 use crate::{
     bson::{bson_error_t, bson_t},
-    client::mongoc_client_t,
+    client::{make_agg_pipeline, mongoc_client_t},
     cursor::mongoc_cursor_t,
     database::mongoc_database_t,
     mongoc_query_flags_t,
@@ -102,19 +102,7 @@ pub unsafe extern "C" fn mongoc_collection_aggregate(
             Default::default()
         };
 
-        let pipeline_doc = match (*pipeline).into_iter().next().transpose()? {
-            Some(("0", _)) | None => (*pipeline).deref(),
-            Some(("pipeline", RawBsonRef::Document(d))) => d,
-            _ => anyhow::bail!("invalid pipeline document: {:#?}", (*pipeline).deref()),
-        };
-
-        let pipeline: Vec<Document> = pipeline_doc
-            .into_iter()
-            .map(|kvp| match kvp?.1 {
-                RawBsonRef::Document(d) => Ok(mongodb::bson::to_document(&d)?),
-                o => anyhow::bail!("expected document in pipeline, got {:?} instead", o),
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        let pipeline = make_agg_pipeline(pipeline)?;
 
         let result = (*collection).aggregate(pipeline, opts)?;
         Ok(Box::into_raw(Box::new(mongoc_cursor_t::new(

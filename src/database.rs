@@ -2,10 +2,16 @@ use std::{ffi::CStr, ops::Deref, os::raw::c_char};
 
 use mongodb::{
     bson::RawDocumentBuf,
+    options::AggregateOptions,
     sync::{Client, Database},
 };
 
-use crate::{bson::bson_t, client::mongoc_client_t, collection::mongoc_collection_t};
+use crate::{
+    bson::bson_t,
+    client::{make_agg_pipeline, mongoc_client_t},
+    collection::mongoc_collection_t,
+    cursor::mongoc_cursor_t,
+};
 
 #[allow(non_camel_case_types)]
 pub struct mongoc_database_t {
@@ -52,6 +58,34 @@ pub unsafe extern "C" fn mongoc_database_command_simple(
             // TODO: set error here
             false
         }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_database_aggregate(
+    database: *const mongoc_database_t,
+    pipeline: *const bson_t,
+    options: *const bson_t,
+    _read_pref: *const u8,
+) -> *const mongoc_cursor_t {
+    let result: anyhow::Result<_> = (|| {
+        let opts: AggregateOptions = if !options.is_null() {
+            mongodb::bson::from_slice((*options).as_bytes())?
+        } else {
+            Default::default()
+        };
+
+        let pipeline = make_agg_pipeline(pipeline)?;
+
+        let result = (*database).aggregate(pipeline, opts)?;
+        Ok(Box::into_raw(Box::new(mongoc_cursor_t::new(
+            result.with_type(),
+        ))))
+    })();
+
+    match result {
+        Ok(r) => r,
+        Err(_e) => std::ptr::null_mut(),
     }
 }
 
