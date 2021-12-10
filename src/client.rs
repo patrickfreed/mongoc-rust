@@ -76,6 +76,14 @@ pub unsafe extern "C" fn mongoc_client_start_session(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn mongoc_client_get_server_description(
+    client: *mut mongoc_client_t,
+    server_id: u32,
+) -> *const u8 {
+    panic!("server id not exposed by driver")
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn mongoc_client_destroy(client: *mut mongoc_client_t) {
     drop(Box::from_raw(client));
 }

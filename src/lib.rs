@@ -1,3 +1,4 @@
+pub mod api;
 pub mod apm;
 pub mod bson;
 mod change_stream;

@@ -87,3 +87,8 @@ pub unsafe extern "C" fn mongoc_apm_command_succeeded_get_reply(
 ) -> *const bson_t<'static> {
     std::ptr::null()
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_server_description_destroy(_sd: *mut u8) {
+    panic!("sd not implemented")
+}
