@@ -2,7 +2,10 @@ use std::ops::{Deref, DerefMut};
 
 use mongodb::{bson::RawDocumentBuf, sync::Cursor};
 
-use crate::bson::{bson_new, bson_t};
+use crate::{
+    bson::{bson_error_t, bson_new, bson_t},
+    client::mongoc_client_t,
+};
 
 pub struct mongoc_cursor_t {
     rust_cursor: Cursor<RawDocumentBuf>,
@@ -31,6 +34,15 @@ impl mongoc_cursor_t {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn mongoc_cursor_new_from_command_reply_with_opts(
+    _client: *mut mongoc_client_t,
+    _reply: *mut bson_t<'static>,
+    _opts: *const bson_t<'static>,
+) -> *mut mongoc_cursor_t {
+    panic!("cant implement")
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn mongoc_cursor_next(
     cursor: *mut mongoc_cursor_t,
     bson: *mut *const bson_t,
@@ -47,6 +59,26 @@ pub unsafe extern "C" fn mongoc_cursor_next(
         }
         _ => false,
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_cursor_more(_cursor: *mut mongoc_cursor_t) -> bool {
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_cursor_get_id(cursor: *mut mongoc_cursor_t) -> i64 {
+    (*cursor).id()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_cursor_error_document(
+    _cursor: *mut mongoc_cursor_t,
+    _error: *mut bson_error_t,
+    _reply: *const *mut bson_t<'static>,
+) -> bool {
+    // TODO: implement this
+    false
 }
 
 #[no_mangle]

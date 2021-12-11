@@ -64,7 +64,7 @@ pub unsafe extern "C" fn bson_init_static<'a>(
 ) -> bool {
     let slice = std::slice::from_raw_parts(bytes, length);
     if let Ok(doc) = RawDocument::from_bytes(slice) {
-        (*bson).doc = doc.into();
+        (*bson).doc = Cow::Borrowed(doc);
         true
     } else {
         false

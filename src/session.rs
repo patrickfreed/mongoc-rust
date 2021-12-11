@@ -1,12 +1,21 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 use mongodb::{
     bson::{RawDocumentBuf, Timestamp},
+    options::{SessionOptions, TransactionOptions},
     sync::ClientSession,
     ClusterTime,
 };
 
-use crate::bson::{bson_error_t, bson_t};
+use crate::{
+    bson::{bson_error_t, bson_t},
+    read_concern::mongoc_read_concern_t,
+    read_pref::mongoc_read_prefs_t,
+    write_concern::mongoc_write_concern_t,
+};
 
 #[allow(non_camel_case_types)]
 pub struct mongoc_client_session_t {
@@ -113,10 +122,13 @@ pub unsafe extern "C" fn mongoc_client_session_advance_cluster_time(
 #[no_mangle]
 pub unsafe extern "C" fn mongoc_client_session_start_transaction(
     session: *mut mongoc_client_session_t,
-    _opts: *mut u8,
+    opts: *const mongoc_transaction_opt_t,
     _error: *mut bson_error_t,
 ) -> bool {
-    (*session).rust_session.start_transaction(None).is_ok()
+    (*session)
+        .rust_session
+        .start_transaction((*opts).clone())
+        .is_ok()
 }
 
 #[no_mangle]
@@ -160,4 +172,132 @@ pub unsafe extern "C" fn mongoc_client_session_get_dirty(
 #[no_mangle]
 pub unsafe extern "C" fn mongoc_client_session_destroy(session: *mut mongoc_client_session_t) {
     drop(Box::from_raw(session))
+}
+
+pub struct mongoc_session_opt_t {
+    rust_opts: SessionOptions,
+}
+
+impl mongoc_session_opt_t {
+    fn new() -> Self {
+        Self {
+            rust_opts: SessionOptions::builder().build(),
+        }
+    }
+}
+
+impl Deref for mongoc_session_opt_t {
+    type Target = SessionOptions;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rust_opts
+    }
+}
+
+impl DerefMut for mongoc_session_opt_t {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.rust_opts
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_session_opts_new() -> *mut mongoc_session_opt_t {
+    Box::into_raw(Box::new(mongoc_session_opt_t::new()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_session_opts_set_causal_consistency(
+    opts: *mut mongoc_session_opt_t,
+    cc: bool,
+) {
+    (*opts).causal_consistency = Some(cc);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_session_opts_set_snapshot(
+    opts: *mut mongoc_session_opt_t,
+    snapshot: bool,
+) {
+    (*opts).snapshot = Some(snapshot);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_session_opts_set_default_transaction_opts(
+    opts: *mut mongoc_session_opt_t,
+    txn_opts: *const mongoc_transaction_opt_t,
+) {
+    (*opts).default_transaction_options = Some((*txn_opts).clone());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_session_opts_destroy(opts: *mut mongoc_session_opt_t) {
+    drop(Box::from_raw(opts))
+}
+
+pub struct mongoc_transaction_opt_t {
+    rust_opts: TransactionOptions,
+}
+
+impl mongoc_transaction_opt_t {
+    fn new() -> Self {
+        Self {
+            rust_opts: TransactionOptions::builder().build(),
+        }
+    }
+}
+
+impl Deref for mongoc_transaction_opt_t {
+    type Target = TransactionOptions;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rust_opts
+    }
+}
+
+impl DerefMut for mongoc_transaction_opt_t {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.rust_opts
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_new() -> *mut mongoc_transaction_opt_t {
+    Box::into_raw(Box::new(mongoc_transaction_opt_t::new()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_set_max_commit_time_ms(
+    opts: *mut mongoc_transaction_opt_t,
+    commit_time: i64,
+) {
+    (*opts).max_commit_time = Some(Duration::from_millis(commit_time.try_into().unwrap()));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_set_read_concern(
+    _opts: *mut mongoc_transaction_opt_t,
+    _rc: *const mongoc_read_concern_t,
+) {
+    todo!("txn opts read concern not implemented")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_set_write_concern(
+    _opts: *mut mongoc_transaction_opt_t,
+    _rc: *const mongoc_write_concern_t,
+) {
+    todo!("txn opts write concern not implemented")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_set_read_prefs(
+    _opts: *mut mongoc_transaction_opt_t,
+    _rc: *const mongoc_read_prefs_t,
+) {
+    todo!("txn opts read prefs not implemented")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn mongoc_transaction_opts_destroy(opts: *mut mongoc_transaction_opt_t) {
+    drop(Box::from_raw(opts))
 }
